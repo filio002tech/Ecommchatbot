@@ -90,7 +90,7 @@ class EcommerceBot:
         try:
             return pd.read_csv('products.csv')
         except FileNotFoundError:
-            st.error("Products CSV file not found. Please ensure 'products.csv' exists.")
+            # Don't show error in production, just return empty DataFrame
             return pd.DataFrame()
     
     def create_sample_csv(self):
@@ -258,27 +258,30 @@ class EcommerceBot:
     
     def add_to_cart(self, product_id: int):
         """Add product to cart and redirect to checkout"""
-        product = self.products_df[self.products_df['id'] == product_id].iloc[0]
-        
-        # Check if product already in cart
-        for item in st.session_state.cart:
-            if item['id'] == product_id:
-                item['quantity'] += 1
-                st.success(f"Added another {product['name']} to cart!")
-                st.session_state.redirect_to_checkout = True
-                return
-        
-        # Add new item to cart
-        cart_item = {
-            'id': product['id'],
-            'name': product['name'],
-            'price': product['price'],
-            'quantity': 1,
-            'brand': product['brand']
-        }
-        st.session_state.cart.append(cart_item)
-        st.success(f"Added {product['name']} to cart!")
-        st.session_state.redirect_to_checkout = True
+        try:
+            product = self.products_df[self.products_df['id'] == product_id].iloc[0]
+            
+            # Check if product already in cart
+            for item in st.session_state.cart:
+                if item['id'] == product_id:
+                    item['quantity'] += 1
+                    st.success(f"Added another {product['name']} to cart!")
+                    st.session_state.redirect_to_checkout = True
+                    return
+            
+            # Add new item to cart
+            cart_item = {
+                'id': product['id'],
+                'name': product['name'],
+                'price': product['price'],
+                'quantity': 1,
+                'brand': product['brand']
+            }
+            st.session_state.cart.append(cart_item)
+            st.success(f"Added {product['name']} to cart!")
+            st.session_state.redirect_to_checkout = True
+        except Exception as e:
+            st.error("Error adding product to cart. Please try again.")
     
     def view_product(self, product_id: int):
         """Set product to view"""
@@ -290,16 +293,16 @@ class EcommerceBot:
             st.markdown("### Quick Actions for Search Results")
             
             for product in st.session_state.search_results_products:
-                with st.container():
-                    st.markdown(f"""
-                    <div class="search-result-card">
-                        <h5>{product['name']}</h5>
-                        <p><strong>Price:</strong> {self.format_price(product['price'])} | <strong>Stock:</strong> {product['stock_quantity']} units</p>
-                        <p><small>{product['specifications'][:100]}...</small></p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    col1, col2 = st.columns([1, 1])
+                st.markdown(f"""
+                <div class="search-result-card">
+                    <h5>{product['name']}</h5>
+                    <p><strong>Price:</strong> {self.format_price(product['price'])} | <strong>Stock:</strong> {product['stock_quantity']} units</p>
+                    <p><small>{product['specifications'][:100]}...</small></p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                try:
+                    col1, col2 = st.columns(2)
                     with col1:
                         if st.button(f"View Details", key=f"search_view_{product['id']}", type="secondary"):
                             self.view_product(product['id'])
@@ -309,44 +312,65 @@ class EcommerceBot:
                         if st.button(f"Add to Cart", key=f"search_cart_{product['id']}", type="primary"):
                             self.add_to_cart(product['id'])
                             st.rerun()
-                    
-                    st.markdown("---")
+                except Exception as e:
+                    # Fallback to simple buttons without columns
+                    if st.button(f"View Details - {product['name']}", key=f"search_view_fallback_{product['id']}"):
+                        self.view_product(product['id'])
+                        st.rerun()
+                    if st.button(f"Add to Cart - {product['name']}", key=f"search_cart_fallback_{product['id']}"):
+                        self.add_to_cart(product['id'])
+                        st.rerun()
+                
+                st.markdown("---")
     
     def display_product_view(self):
         """Display detailed product view"""
         if st.session_state.viewing_product:
-            product = self.products_df[self.products_df['id'] == st.session_state.viewing_product].iloc[0]
-            
-            st.markdown(f"""
-            <div class="product-view-modal">
-                <h2>📱 {product['name']}</h2>
-                <h4>Brand: {product['brand']}</h4>
-                <h4>Category: {product['category']}</h4>
-                <h3 class="price-tag">{self.format_price(product['price'])}</h3>
-                <p><strong>Stock Available:</strong> {product['stock_quantity']} units</p>
-                <h4>Full Specifications:</h4>
-                <p>{product['specifications']}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns([1, 1, 1])
-            with col1:
-                if st.button("Add to Cart", key=f"view_cart_{product['id']}", type="primary"):
-                    self.add_to_cart(product['id'])
-                    st.rerun()
-            
-            with col2:
-                if st.button("Close View", key=f"close_view_{product['id']}"):
-                    st.session_state.viewing_product = None
-                    st.rerun()
-            
-            with col3:
-                if st.button("Back to Products", key=f"back_products_{product['id']}"):
-                    st.session_state.viewing_product = None
-                    st.rerun()
+            try:
+                product = self.products_df[self.products_df['id'] == st.session_state.viewing_product].iloc[0]
+                
+                st.markdown(f"""
+                <div class="product-view-modal">
+                    <h2>📱 {product['name']}</h2>
+                    <h4>Brand: {product['brand']}</h4>
+                    <h4>Category: {product['category']}</h4>
+                    <h3 class="price-tag">{self.format_price(product['price'])}</h3>
+                    <p><strong>Stock Available:</strong> {product['stock_quantity']} units</p>
+                    <h4>Full Specifications:</h4>
+                    <p>{product['specifications']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                try:
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button("Add to Cart", key=f"view_cart_{product['id']}", type="primary"):
+                            self.add_to_cart(product['id'])
+                            st.rerun()
+                    
+                    with col2:
+                        if st.button("Close View", key=f"close_view_{product['id']}"):
+                            st.session_state.viewing_product = None
+                            st.rerun()
+                    
+                    with col3:
+                        if st.button("Back to Products", key=f"back_products_{product['id']}"):
+                            st.session_state.viewing_product = None
+                            st.rerun()
+                except Exception:
+                    # Fallback to simple buttons
+                    if st.button(f"Add to Cart - {product['name']}", key=f"view_cart_fallback_{product['id']}"):
+                        self.add_to_cart(product['id'])
+                        st.rerun()
+                    if st.button("Close View", key=f"close_view_fallback_{product['id']}"):
+                        st.session_state.viewing_product = None
+                        st.rerun()
+            except Exception as e:
+                st.error("Error displaying product details.")
+                st.session_state.viewing_product = None
     
     def display_products_gallery(self):
-        """Display products in a grid layout"""
+        """Display products in a grid layout with better error handling"""
         if self.products_df.empty:
             st.warning("No products available.")
             return
@@ -363,40 +387,69 @@ class EcommerceBot:
         
         st.markdown("### 🛍️ Our Premium Laptop Collection")
         
-        # Create columns for product grid
-        cols = st.columns(2)
+        # Display products with better error handling
+        try:
+            # Try to create columns, fallback to single column if fails
+            cols = st.columns(2)
+            use_columns = True
+        except Exception:
+            use_columns = False
         
         for idx, product in self.products_df.iterrows():
-            with cols[idx % 2]:
-                with st.container():
-                    st.markdown(f"""
-                    <div class="product-card">
-                        <h4>{product['name']}</h4>
-                        <p><strong>Brand:</strong> {product['brand']}</p>
-                        <p><strong>Category:</strong> {product['category']}</p>
-                        <p class="price-tag">{self.format_price(product['price'])}</p>
-                        <p><strong>Stock:</strong> {product['stock_quantity']} units</p>
-                        <p><small>{product['specifications'][:80]}...</small></p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        if st.button(f"Add to Cart", key=f"cart_{product['id']}", type="primary"):
-                            self.add_to_cart(product['id'])
-                            st.rerun()
-                    with col2:
-                        if st.button(f"View Details", key=f"view_{product['id']}"):
-                            self.view_product(product['id'])
-                            st.rerun()
+            try:
+                # Use columns if available, otherwise single column
+                if use_columns:
+                    with cols[idx % 2]:
+                        self._display_single_product(product, idx)
+                else:
+                    self._display_single_product(product, idx)
+            except Exception as e:
+                # Skip problematic products but continue with others
+                continue
+    
+    def _display_single_product(self, product, idx):
+        """Display a single product card"""
+        try:
+            st.markdown(f"""
+            <div class="product-card">
+                <h4>{product['name']}</h4>
+                <p><strong>Brand:</strong> {product['brand']}</p>
+                <p><strong>Category:</strong> {product['category']}</p>
+                <p class="price-tag">{self.format_price(product['price'])}</p>
+                <p><strong>Stock:</strong> {product['stock_quantity']} units</p>
+                <p><small>{product['specifications'][:80]}...</small></p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Try to use columns for buttons, fallback to stacked buttons
+            try:
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"Add to Cart", key=f"cart_{product['id']}", type="primary"):
+                        self.add_to_cart(product['id'])
+                        st.rerun()
+                with col2:
+                    if st.button(f"View Details", key=f"view_{product['id']}"):
+                        self.view_product(product['id'])
+                        st.rerun()
+            except Exception:
+                # Fallback to stacked buttons
+                if st.button(f"Add to Cart - {product['name']}", key=f"cart_fallback_{product['id']}", type="primary"):
+                    self.add_to_cart(product['id'])
+                    st.rerun()
+                if st.button(f"View Details - {product['name']}", key=f"view_fallback_{product['id']}"):
+                    self.view_product(product['id'])
+                    st.rerun()
+        except Exception:
+            # Skip if there's any error with this product
+            pass
     
     def display_chat_interface(self):
         """Display chat interface"""
         st.markdown("### 🤖 Chat with our AI Assistant")
         
         # Chat history
-        chat_container = st.container()
-        with chat_container:
+        try:
             for message in st.session_state.chat_history:
                 if message['role'] == 'user':
                     st.markdown(f"""
@@ -410,187 +463,218 @@ class EcommerceBot:
                         <strong>Assistant:</strong> {message['content']}
                     </div>
                     """, unsafe_allow_html=True)
+        except Exception:
+            st.error("Error displaying chat history.")
         
-        # Chat input form (this will clear after submission)
-        with st.form(key="chat_form", clear_on_submit=True):
-            user_input = st.text_input("Type your message here...", placeholder="Ask me about laptops, prices, or place an order!")
-            submit_button = st.form_submit_button("Send")
-        
-        if submit_button and user_input.strip():
-            # Add user message to history
-            st.session_state.chat_history.append({"role": "user", "content": user_input})
+        # Chat input form
+        try:
+            with st.form(key="chat_form", clear_on_submit=True):
+                user_input = st.text_input("Type your message here...", placeholder="Ask me about laptops, prices, or place an order!")
+                submit_button = st.form_submit_button("Send")
             
-            # Get bot response
-            bot_response = self.process_user_message(user_input)
-            st.session_state.chat_history.append({"role": "bot", "content": bot_response})
-            
-            # Rerun to show new messages and clear input
-            st.rerun()
+            if submit_button and user_input.strip():
+                # Add user message to history
+                st.session_state.chat_history.append({"role": "user", "content": user_input})
+                
+                # Get bot response
+                bot_response = self.process_user_message(user_input)
+                st.session_state.chat_history.append({"role": "bot", "content": bot_response})
+                
+                # Rerun to show new messages
+                st.rerun()
+        except Exception as e:
+            st.error("Error with chat interface. Please refresh the page.")
     
     def display_cart_sidebar(self):
         """Display shopping cart in sidebar"""
-        st.sidebar.markdown("### 🛒 Shopping Cart")
-        
-        # Show user name if available
-        if st.session_state.user_name:
-            st.sidebar.markdown(f"**Customer:** {st.session_state.user_name}")
-            st.sidebar.markdown("---")
-        
-        if st.session_state.cart:
-            total = 0
-            for i, item in enumerate(st.session_state.cart):
-                st.sidebar.markdown(f"**{item['name']}**")
-                st.sidebar.markdown(f"Quantity: {item['quantity']}")
-                st.sidebar.markdown(f"Price: {self.format_price(item['price'] * item['quantity'])}")
-                
-                if st.sidebar.button(f"Remove", key=f"remove_{i}"):
-                    st.session_state.cart.pop(i)
-                    st.rerun()
-                
-                total += item['price'] * item['quantity']
+        try:
+            st.sidebar.markdown("### 🛒 Shopping Cart")
+            
+            # Show user name if available
+            if st.session_state.user_name:
+                st.sidebar.markdown(f"**Customer:** {st.session_state.user_name}")
                 st.sidebar.markdown("---")
             
-            st.sidebar.markdown(f"### Total: {self.format_price(total)}")
+            if st.session_state.cart:
+                total = 0
+                for i, item in enumerate(st.session_state.cart):
+                    st.sidebar.markdown(f"**{item['name']}**")
+                    st.sidebar.markdown(f"Quantity: {item['quantity']}")
+                    st.sidebar.markdown(f"Price: {self.format_price(item['price'] * item['quantity'])}")
+                    
+                    if st.sidebar.button(f"Remove", key=f"remove_{i}"):
+                        st.session_state.cart.pop(i)
+                        st.rerun()
+                    
+                    total += item['price'] * item['quantity']
+                    st.sidebar.markdown("---")
+                
+                st.sidebar.markdown(f"### Total: {self.format_price(total)}")
+                
+                if st.sidebar.button("Proceed to Checkout", type="primary"):
+                    st.session_state.redirect_to_checkout = True
+                    st.rerun()
+                
+                if st.sidebar.button("Clear Cart"):
+                    st.session_state.cart = []
+                    st.rerun()
+            else:
+                st.sidebar.info("Your cart is empty")
             
-            if st.sidebar.button("Proceed to Checkout", type="primary"):
-                st.session_state.redirect_to_checkout = True
+            # Add a button to go back to all products
+            if st.sidebar.button("🔙 Back to All Products"):
+                st.session_state.show_search_results_buttons = False
+                st.session_state.search_results_products = []
+                st.session_state.viewing_product = None
                 st.rerun()
-            
-            if st.sidebar.button("Clear Cart"):
-                st.session_state.cart = []
-                st.rerun()
-        else:
-            st.sidebar.info("Your cart is empty")
-        
-        # Add a button to go back to all products
-        if st.sidebar.button("🔙 Back to All Products"):
-            st.session_state.show_search_results_buttons = False
-            st.session_state.search_results_products = []
-            st.session_state.viewing_product = None
-            st.rerun()
+        except Exception as e:
+            st.sidebar.error("Error displaying cart.")
     
     def display_checkout(self):
         """Display checkout form"""
-        st.markdown("### 📋 Checkout")
-        
-        if not st.session_state.cart:
-            st.warning("Your cart is empty. Add some products first!")
-            return
-        
-        with st.form("checkout_form"):
-            st.markdown("#### Customer Information")
+        try:
+            st.markdown("### 📋 Checkout")
             
-            # Pre-fill name if available
-            default_name = st.session_state.user_name if st.session_state.user_name else ""
-            name = st.text_input("Full Name*", value=default_name, placeholder="Enter your full name")
-            email = st.text_input("Email*", placeholder="your.email@example.com")
-            phone = st.text_input("Phone Number*", placeholder="+234 XXX XXX XXXX")
-            address = st.text_area("Delivery Address*", placeholder="Enter your complete delivery address")
+            if not st.session_state.cart:
+                st.warning("Your cart is empty. Add some products first!")
+                return
             
-            st.markdown("#### Order Summary")
-            total = sum(item['price'] * item['quantity'] for item in st.session_state.cart)
-            
-            for item in st.session_state.cart:
-                st.write(f"• {item['name']} x{item['quantity']} - {self.format_price(item['price'] * item['quantity'])}")
-            
-            st.markdown(f"**Total Amount: {self.format_price(total)}**")
-            
-            submitted = st.form_submit_button("Place Order", type="primary")
-            
-            if submitted:
-                if name and email and phone and address:
-                    # Create order record
-                    order_data = {
-                        'order_id': f"ORD{datetime.now().strftime('%Y%m%d%H%M%S')}",
-                        'customer_name': name,
-                        'email': email,
-                        'phone': phone,
-                        'address': address,
-                        'items': st.session_state.cart.copy(),
-                        'total': total,
-                        'order_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'status': 'Confirmed'
-                    }
-                    
-                    # Save order (in real app, this would go to database)
-                    st.success("🎉 Order placed successfully!")
-                    st.markdown(f"""
-                    <div class="order-summary">
-                        <h4>Order Confirmation</h4>
-                        <p><strong>Order ID:</strong> {order_data['order_id']}</p>
-                        <p><strong>Customer:</strong> {name}</p>
-                        <p><strong>Total:</strong> {self.format_price(total)}</p>
-                        <p><strong>Status:</strong> Confirmed</p>
-                        <p>Thank you for shopping with TechMart, {name}! You will receive a confirmation email shortly.</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Clear cart and reset redirect flag
-                    st.session_state.cart = []
-                    st.session_state.redirect_to_checkout = False
-                else:
-                    st.error("Please fill in all required fields.")
+            with st.form("checkout_form"):
+                st.markdown("#### Customer Information")
+                
+                # Pre-fill name if available
+                default_name = st.session_state.user_name if st.session_state.user_name else ""
+                name = st.text_input("Full Name*", value=default_name, placeholder="Enter your full name")
+                email = st.text_input("Email*", placeholder="your.email@example.com")
+                phone = st.text_input("Phone Number*", placeholder="+234 XXX XXX XXXX")
+                address = st.text_area("Delivery Address*", placeholder="Enter your complete delivery address")
+                
+                st.markdown("#### Order Summary")
+                total = sum(item['price'] * item['quantity'] for item in st.session_state.cart)
+                
+                for item in st.session_state.cart:
+                    st.write(f"• {item['name']} x{item['quantity']} - {self.format_price(item['price'] * item['quantity'])}")
+                
+                st.markdown(f"**Total Amount: {self.format_price(total)}**")
+                
+                submitted = st.form_submit_button("Place Order", type="primary")
+                
+                if submitted:
+                    if name and email and phone and address:
+                        # Create order record
+                        order_data = {
+                            'order_id': f"ORD{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                            'customer_name': name,
+                            'email': email,
+                            'phone': phone,
+                            'address': address,
+                            'items': st.session_state.cart.copy(),
+                            'total': total,
+                            'order_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            'status': 'Confirmed'
+                        }
+                        
+                        # Save order (in real app, this would go to database)
+                        st.success("🎉 Order placed successfully!")
+                        st.markdown(f"""
+                        <div class="order-summary">
+                            <h4>Order Confirmation</h4>
+                            <p><strong>Order ID:</strong> {order_data['order_id']}</p>
+                            <p><strong>Customer:</strong> {name}</p>
+                            <p><strong>Total:</strong> {self.format_price(total)}</p>
+                            <p><strong>Status:</strong> Confirmed</p>
+                            <p>Thank you for shopping with TechMart, {name}! You will receive a confirmation email shortly.</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Clear cart and reset redirect flag
+                        st.session_state.cart = []
+                        st.session_state.redirect_to_checkout = False
+                    else:
+                        st.error("Please fill in all required fields.")
+        except Exception as e:
+            st.error("Error displaying checkout form. Please try again.")
 
 def main():
-    # Header
-    st.markdown("""
-    <div class="main-header">
-        <h1>🖥️ Emmanuel TechMart - Premium Laptops</h1>
-        <p>Your one-stop shop for HP, Dell & Lenovo laptops</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Initialize bot
-    bot = EcommerceBot()
-    
-    # Sidebar for cart
-    bot.display_cart_sidebar()
-    
-    # Handle redirect to checkout
-    if st.session_state.get('redirect_to_checkout', False):
-        # Create tabs but set checkout as default
-        tab1, tab2 = st.tabs(["🛍️ Products & Chat", "🛒 Checkout"])
+    try:
+        # Header
+        st.markdown("""
+        <div class="main-header">
+            <h1>🖥️ Emmanuel TechMart - Premium Laptops</h1>
+            <p>Your one-stop shop for HP, Dell & Lenovo laptops</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Auto-switch to checkout tab by showing it first
-        with tab2:
-            bot.display_checkout()
-            # Reset redirect flag after showing checkout
-            if st.button("Continue Shopping"):
-                st.session_state.redirect_to_checkout = False
-                st.rerun()
+        # Initialize bot
+        bot = EcommerceBot()
         
-        with tab1:
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                bot.display_products_gallery()
-            
-            with col2:
-                bot.display_chat_interface()
-    else:
-        # Normal flow
-        tab1, tab2 = st.tabs(["🛍️ Products & Chat", "🛒 Checkout"])
+        # Sidebar for cart
+        bot.display_cart_sidebar()
         
-        with tab1:
-            col1, col2 = st.columns([2, 1])
+        # Handle redirect to checkout
+        if st.session_state.get('redirect_to_checkout', False):
+            # Create tabs but set checkout as default
+            tab1, tab2 = st.tabs(["🛍️ Products & Chat", "🛒 Checkout"])
             
-            with col1:
-                bot.display_products_gallery()
+            # Auto-switch to checkout tab by showing it first
+            with tab2:
+                bot.display_checkout()
+                # Reset redirect flag after showing checkout
+                if st.button("Continue Shopping"):
+                    st.session_state.redirect_to_checkout = False
+                    st.rerun()
             
-            with col2:
-                bot.display_chat_interface()
+            with tab1:
+                # Use safer layout approach
+                try:
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        bot.display_products_gallery()
+                    
+                    with col2:
+                        bot.display_chat_interface()
+                except Exception:
+                    # Fallback to single column layout
+                    st.markdown("#### Products")
+                    bot.display_products_gallery()
+                    st.markdown("#### Chat")
+                    bot.display_chat_interface()
+        else:
+            # Normal flow
+            tab1, tab2 = st.tabs(["🛍️ Products & Chat", "🛒 Checkout"])
+            
+            with tab1:
+                try:
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        bot.display_products_gallery()
+                    
+                    with col2:
+                        bot.display_chat_interface()
+                except Exception:
+                    # Fallback to single column layout
+                    st.markdown("#### Products")
+                    bot.display_products_gallery()
+                    st.markdown("#### Chat")
+                    bot.display_chat_interface()
+            
+            with tab2:
+                bot.display_checkout()
         
-        with tab2:
-            bot.display_checkout()
+        # Footer
+        st.markdown("---")
+        st.markdown("""
+        <div style="text-align: center; color: #666;">
+            <p>TechMart - Premium Laptops powered with AI Assistants </p>
+            <p>For support, contact us at: support@techmart.ng</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    # Footer
-    st.markdown("---")
-    st.markdown("""
-    <div style="text-align: center; color: #666;">
-        <p>TechMart - Premium Laptops powered with AI Assistants </p>
-        <p>For support, contact us at: support@techmart.ng</p>
-    </div>
-    """, unsafe_allow_html=True)
+    except Exception as e:
+        st.error("An error occurred. Please refresh the page.")
+        st.error(f"Error details: {str(e)}")
 
 if __name__ == "__main__":
     main()
