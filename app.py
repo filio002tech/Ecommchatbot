@@ -668,7 +668,7 @@ def main():
         st.markdown("""
         <div style="text-align: center; color: #666;">
             <p>TechMart - Premium Laptops powered with AI Assistants </p>
-            <p>For support, contact us at: support@techmart.ng</p>
+            <p>For support, contact us at: support@emmatechmart.delsu.ng</p>
         </div>
         """, unsafe_allow_html=True)
     
@@ -678,3 +678,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
